@@ -1,0 +1,68 @@
+services:
+  # Serviço para o banco de dados PostgreSQL
+  db:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nestuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nestpass}
+      POSTGRES_DB: ${POSTGRES_DB:-nestdb}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  # Serviço para o Redis (cache)
+  redis:
+    image: redis:alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+
+  # Serviço para o módulo de Portadores
+  portadores:
+    build:
+      context: ./portadores
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+      - redis
+    ports:
+      - "3001:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nestuser}:${POSTGRES_PASSWORD:-nestpass}@db:5432/${POSTGRES_DB:-nestdb}?schema=portadores
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    networks:
+      - app-network
+
+  # Serviço para o módulo de Contas
+  contas:
+    build:
+      context: ./contas
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+      - redis
+    ports:
+      - "3002:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nestuser}:${POSTGRES_PASSWORD:-nestpass}@db:5432/${POSTGRES_DB:-nestdb}?schema=accounts
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PORTADORES_API_URL: http://portadores:3000
+    networks:
+      - app-network
+
+
+volumes:
+  db-data:
+
+
+networks:
+  app-network:
+    driver: bridge
